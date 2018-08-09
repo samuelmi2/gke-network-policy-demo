@@ -19,5 +19,6 @@ set -euo pipefail
 COMMAND="gcloud compute ssh gke-demo-bastion --command"
 $COMMAND "source /etc/profile && exit" -- -t
 $COMMAND "kubectl apply -f ./manifests/hello-app/"
-sleep 30
+echo "Waiting for pods."
+sleep 20
 exit 0
