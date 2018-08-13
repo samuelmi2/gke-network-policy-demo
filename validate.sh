@@ -15,46 +15,37 @@
 
 # bash "strict-mode", fail immediately if there is a problem
 set -euo pipefail
-
-COMMAND="gcloud compute ssh gke-demo-bastion --command"
 HELLO_WORLD='Hello, world!'
 TIMED_OUT='wget: download timed out'
 
-$COMMAND 'kubectl logs --tail 10 $(kubectl get pods -oname -l app=hello)' \
- | grep "$HELLO_WORLD" &> /dev/null
-if [ $? == 0 ]; then
-  echo "step 1 of the validation passed."
-else
-  exit 1
-fi
+call_bastion() {
+  local command=$1; shift;
+  # shellcheck disable=SC2005
+  echo "$(gcloud compute ssh gke-demo-bastion --command "${command}")"
+}
 
-$COMMAND 'kubectl logs --tail 10 $(kubectl get pods -oname -l app=not-hello)' \
- | grep "$HELLO_WORLD" &> /dev/null
-if [ $? == 0 ]; then
-  echo "step 2 of the validation passed."
-else
-  exit 1
-fi
+call_bastion "kubectl logs --tail 10 \$(kubectl get pods -oname -l app=hello)" \
+| grep "$HELLO_WORLD" &> /dev/null || exit 1
+echo "step 1 of the validation passed."
 
-$COMMAND 'kubectl apply -f ./manifests/network-policy.yaml' &> /dev/null
+call_bastion "kubectl logs --tail 10 \
+ \$(kubectl get pods -oname -l app=not-hello)" | grep "$HELLO_WORLD" \
+ &> /dev/null || exit 1
+echo "step 2 of the validation passed."
+
+
+call_bastion "kubectl apply -f ./manifests/network-policy.yaml" &> /dev/null
+
 # Sleep for 3s while more logs come in.
 sleep 3
-$COMMAND 'kubectl logs --tail 10 $(kubectl get pods -oname -l app=not-hello)' \
- | grep "$TIMED_OUT" &> /dev/null
-if [ $? == 0 ]; then
-  echo "step 3 of the validation passed."
-else
-  exit 1
-fi
 
-$COMMAND 'kubectl logs --tail 10 $(kubectl get pods -oname -l app=hello)' \
- | grep "$HELLO_WORLD" &> /dev/null
-if [ $? == 0 ]; then
-  echo "step 4 of the validation passed."
-else
-  exit 1
-fi
+call_bastion "kubectl logs --tail 10 \
+ \$(kubectl get pods -oname -l app=not-hello)" | grep "$TIMED_OUT" \
+ &> /dev/null || exit 1
+echo "step 3 of the validation passed."
 
-# Clean Up
+call_bastion "kubectl logs --tail 10 \$(kubectl get pods -oname -l app=hello)" \
+| grep "$HELLO_WORLD" &> /dev/null || exit 1
+echo "step 4 of the validation passed."
 
-$COMMAND "kubectl delete -f ./manifests/network-policy.yaml" &> /dev/null
+call_bastion "kubectl delete -f ./manifests/network-policy.yaml" &> /dev/null
