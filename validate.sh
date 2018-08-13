@@ -20,7 +20,8 @@ TIMED_OUT='wget: download timed out'
 
 call_bastion() {
   local command=$1; shift;
-  echo $(gcloud compute ssh gke-demo-bastion --command "${command}")
+  # shellcheck disable=SC2005
+  echo "$(gcloud compute ssh gke-demo-bastion --command "${command}")"
 }
 
 call_bastion "kubectl logs --tail 10 \$(kubectl get pods -oname -l app=hello)" \

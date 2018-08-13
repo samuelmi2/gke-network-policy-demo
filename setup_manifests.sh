@@ -16,9 +16,41 @@
 # bash "strict-mode", fail immediately if there is a problem
 set -euo pipefail
 
-COMMAND="gcloud compute ssh gke-demo-bastion --command"
-$COMMAND "source /etc/profile && exit" -- -t
-$COMMAND "kubectl apply -f ./manifests/hello-app/"
-echo "Waiting for pods."
-sleep 20
+call_bastion() {
+  local command=$1; shift;
+  # shellcheck disable=SC2005
+  echo "$(gcloud compute ssh gke-demo-bastion --command "${command}")"
+}
+MESSAGE="successfully rolled out"
+
+call_bastion "source /etc/profile && exit"
+call_bastion "kubectl apply -f ./manifests/hello-app/"
+
+while true
+do
+  ROLLOUT=$(call_bastion "kubectl rollout status --watch=false \
+  deployment/hello-server") &> /dev/null
+  if [[ $ROLLOUT = *"$MESSAGE"* ]]; then
+    break
+  fi
+  sleep 2
+done
+while true
+do
+  ROLLOUT=$(call_bastion "kubectl rollout status --watch=false \
+  deployment/hello-client-allowed") &> /dev/null
+  if [[ $ROLLOUT = *"$MESSAGE"* ]]; then
+    break
+  fi
+  sleep 2
+done
+while true
+do
+  ROLLOUT=$(call_bastion "kubectl rollout status --watch=false \
+  deployment/hello-client-blocked") &> /dev/null
+  if [[ $ROLLOUT = *"$MESSAGE"* ]]; then
+    break
+  fi
+  sleep 2
+done
 exit 0
